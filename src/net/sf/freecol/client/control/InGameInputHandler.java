@@ -85,6 +85,8 @@ public final class InGameInputHandler extends InputHandler {
 
     private static final Logger logger = Logger.getLogger(InGameInputHandler.class.getName());
 
+	private static final String MESSAGE_ATTRIBUTE = null;
+
     // A bunch of predefined non-closure runnables.
     private final Runnable closeMenusRunnable = () -> {
         igc().closeMenus();
@@ -358,74 +360,50 @@ public final class InGameInputHandler extends InputHandler {
         return null;
     }
 
-    /**
-     * Handle an "animateAttack"-message.  This only performs animation, if
-     * required.  It does not actually perform any attacks.
-     *
-     * @param element An element (root element in a DOM-parsed XML
-     *     tree) that holds attributes for the old and new tiles and
-     *     an element for the unit that is moving (which are used
-     *     solely to operate the animation).
-     * @return Null.
-     */
+    private static final String ATTACK_ANIMATION = "Attack animation for: ";
+
     private Element animateAttack(Element element) {
+      try {
         final FreeColClient freeColClient = getFreeColClient();
         final Game game = getGame();
         final Player player = freeColClient.getMyPlayer();
-        String str;
-        Unit u;
 
-        if ((str = element.getAttribute("attacker")).isEmpty()) {
-            throw new IllegalStateException("Attack animation for: "
-                + player.getId() + " missing attacker attribute.");
-        }
-        if ((u = game.getFreeColGameObject(str, Unit.class)) == null
-            && (u = selectUnitFromElement(game, element, str)) == null) {
-            throw new IllegalStateException("Attack animation for: "
-                + player.getId() + " omitted attacker: " + str);
-        }
-        final Unit attacker = u;
+        Unit attacker = getUnitFromElement(game, element, "attacker");
+        Unit defender = getUnitFromElement(game, element, "defender");
 
-        if ((str = element.getAttribute("defender")).isEmpty()) {
-            throw new IllegalStateException("Attack animation for: "
-                + player.getId() + " missing defender attribute.");
-        }
-        if ((u = game.getFreeColGameObject(str, Unit.class)) == null
-            && (u = selectUnitFromElement(game, element, str)) == null) {
-            throw new IllegalStateException("Attack animation for: "
-                + player.getId() + " omitted defender: " + str);
-        }
-        final Unit defender = u;
+        Tile attackerTile = getTileFromElement(game, element, "attackerTile");
+        Tile defenderTile = getTileFromElement(game, element, "defenderTile");
 
-        if ((str = element.getAttribute("attackerTile")).isEmpty()) {
-            throw new IllegalStateException("Attack animation for: "
-                + player.getId() + " missing attacker tile attribute.");
-        }
-        final Tile attackerTile = game.getFreeColGameObject(str, Tile.class);
-        if (attackerTile == null) {
-            throw new IllegalStateException("Attack animation for: "
-                + player.getId() + " omitted attacker tile: " + str);
-        }
-
-        if ((str = element.getAttribute("defenderTile")).isEmpty()) {
-            throw new IllegalStateException("Attack animation for: "
-                + player.getId() + " missing defender tile attribute.");
-        }
-        final Tile defenderTile = game.getFreeColGameObject(str, Tile.class);
-        if (defenderTile == null) {
-            throw new IllegalStateException("Attack animation for: "
-                + player.getId() + " omitted defender tile: " + str);
-        }
-
-        final boolean success
-            = Boolean.parseBoolean(element.getAttribute("success"));
+        boolean success = Boolean.parseBoolean(element.getAttribute("success"));
 
         // All is well, do the animation.
-        invokeAndWait(() -> {
-                igc().animateAttack(attacker, defender,
-                                    attackerTile, defenderTile, success);
-            });
-        return null;
+        invokeAndWait(() -> igc().animateAttack(attacker, defender, attackerTile, defenderTile, success));
+
+      } catch (IllegalStateException e) {
+        e.printStackTrace(); // Handle or log the exception appropriately
+      }
+      return null;
+    }
+
+    private Unit getUnitFromElement(Game game, Element element, String attributeName) {
+      String attributeValue = element.getAttribute(attributeName);
+      if (attributeValue.isEmpty()) {
+        throw new IllegalStateException(ATTACK_ANIMATION + game.getFreeColGameObject(attributeValue, Unit.class) + " missing " + attributeName + " attribute.");
+      }
+      Unit unit = game.getFreeColGameObject(attributeValue, Unit.class);
+      if (unit == null) {
+        // Attempt dynamic selection based on element details (replace with your implementation)
+        unit = selectUnitFromElement(game, element, attributeValue);
+      }
+      return unit;
+    }
+
+    private Tile getTileFromElement(Game game, Element element, String attributeName) {
+      String attributeValue = element.getAttribute(attributeName);
+      if (attributeValue.isEmpty()) {
+        throw new IllegalStateException(ATTACK_ANIMATION + game.getFreeColGameObject(attributeValue, Tile.class) + " missing " + attributeName + " attribute.");
+      }
+      return game.getFreeColGameObject(attributeValue, Tile.class);
     }
 
     /**
@@ -440,57 +418,62 @@ public final class InGameInputHandler extends InputHandler {
      * @return Null.
      */
     private Element animateMove(Element element) {
-        final FreeColClient freeColClient = getFreeColClient();
         final Game game = getGame();
-        final Player player = freeColClient.getMyPlayer();
+        try {
+            String unitId = element.getAttribute("unit");
+            if (unitId.isEmpty()) {
+                throw new AnimationException("Missing unitId");
+            }
+            Unit u = game.getFreeColGameObject(unitId, Unit.class);
+            if (u == null) {
+                u = selectUnitFromElement(game, element, unitId);
+                // if (u != null) logger.info("Added unit from element: " + unitId);
+            }
+            if (u == null) {
+                throw new AnimationException("Missing unit: " + unitId);
+            }
+            final Unit unit = u;
 
-        String unitId = element.getAttribute("unit");
-        if (unitId.isEmpty()) {
-            logger.warning("Animation for: " + player.getId()
-                + " missing unitId.");
-            return null;
-        }
-        Unit u = game.getFreeColGameObject(unitId, Unit.class);
-        if (u == null) {
-            u = selectUnitFromElement(game, element, unitId);
-            //if (u != null) logger.info("Added unit from element: " + unitId);
-        }
-        if (u == null) {
-            logger.warning("Animation for: " + player.getId()
-                + " missing unit:" + unitId);
-            return null;
-        }
-        final Unit unit = u;
+            String oldTileId = element.getAttribute("oldTile");
+            if (oldTileId.isEmpty()) {
+                throw new AnimationException("Missing oldTileId");
+            }
+            final Tile oldTile = game.getFreeColGameObject(oldTileId, Tile.class);
+            if (oldTile == null) {
+                throw new AnimationException("Missing oldTile: " + oldTileId);
+            }
 
-        String oldTileId = element.getAttribute("oldTile");
-        if (oldTileId.isEmpty()) {
-            logger.warning("Animation for: " + player.getId()
-                + " missing oldTileId");
-            return null;
-        }
-        final Tile oldTile = game.getFreeColGameObject(oldTileId, Tile.class);
-        if (oldTile == null) {
-            logger.warning("Animation for: " + player.getId()
-                + " missing oldTile: " + oldTileId);
-            return null;
-        }
+            String newTileId = element.getAttribute("newTile");
+            if (newTileId.isEmpty()) {
+                throw new AnimationException("Missing newTileId");
+            }
+            final Tile newTile = game.getFreeColGameObject(newTileId, Tile.class);
+            if (newTile == null) {
+                throw new AnimationException("Missing newTile: " + newTileId);
+            }
 
-        String newTileId = element.getAttribute("newTile");
-        if (newTileId.isEmpty()) {
-            logger.warning("Animation for: " + player.getId()
-                + " missing newTileId");
-            return null;
-        }
-        final Tile newTile = game.getFreeColGameObject(newTileId, Tile.class);
-        if (newTile == null) {
-            logger.warning("Animation for: " + player.getId()
-                + " missing newTile: " + newTileId);
-            return null;
-        }
+            invokeAndWait(() -> {
+                igc().animateMove(unit, oldTile, newTile);
+            });
 
-        invokeAndWait(() -> { igc().animateMove(unit, oldTile, newTile); });
-        return null;
+            // Return the expected Element in the normal case
+            return element;
+        } catch (AnimationException e) {
+            // Handle exceptions or log them as needed
+            logger.warning("Animation error: " + e.getMessage());
+            return null;  // You can return null or another default value here
+        }
     }
+
+    // Custom exception for animation issues
+    class AnimationException extends RuntimeException {
+        private static final long serialVersionUID = 7337176232790001732L;
+
+		public AnimationException(String message) {
+            super(message);
+        }
+    }
+
 
     /**
      * Handle a "chat"-message.
@@ -577,35 +560,6 @@ public final class InGameInputHandler extends InputHandler {
     }
 
     /**
-     * Disposes of the <code>Unit</code>s which are the children of this
-     * Element.
-     *
-     * @param element The element (root element in a DOM-parsed XML
-     *     tree) that holds all the information.
-     * @return Null.
-     */
-    private Element disposeUnits(Element element) {
-        Game game = getGame();
-        NodeList nodes = element.getChildNodes();
-
-        for (int i = 0; i < nodes.getLength(); i++) {
-            // Do not read the whole unit out of the element as we are
-            // only going to dispose of it, not forgetting that the
-            // server may have already done so and its view will only
-            // mislead us here in the client.
-            Element e = (Element) nodes.item(i);
-            String id = FreeColObject.readId(e);
-            Unit u = game.getFreeColGameObject(id, Unit.class);
-            if (u == null) {
-                logger.warning("Object is not a unit");
-            } else {
-                u.dispose();
-            }
-        }
-        return null;
-    }
-
-    /**
      * Handle an "error"-message.
      *
      * @param element The element (root element in a DOM-parsed XML
@@ -635,7 +589,7 @@ public final class InGameInputHandler extends InputHandler {
         FreeColGameObject object = game.getFreeColGameObject(id);
         if (object == null) {
             logger.warning("featureChange with null object");
-            return null;
+            return createErrorElement(element, "Invalid object in featureChange");
         }
 
         NodeList nodes = element.getChildNodes();
@@ -659,10 +613,16 @@ public final class InGameInputHandler extends InputHandler {
 
             } else {
                 logger.warning("featureChange unrecognized: " + tag);
+                return createErrorElement(element, "Unrecognized element in featureChange: " + tag);
             }
         }
-        return null;
+        // Optionally, return a success element here if needed.
+        // return createSuccessElement(element, "Feature change processed successfully");
+
+        // Return a success element indicating the processing has started.
+        return createSuccessElement(element, "Feature change processing started");
     }
+
 
     /**
      * Handle a first contact with a native nation.
@@ -673,28 +633,50 @@ public final class InGameInputHandler extends InputHandler {
      */
     private Element firstContact(Element element) {
         final Game game = getGame();
-        final FirstContactMessage message
-            = new FirstContactMessage(game, element);
+        final FirstContactMessage message = new FirstContactMessage(game, element);
 
         final Player player = message.getPlayer(game);
         if (player == null || player != getFreeColClient().getMyPlayer()) {
             logger.warning("firstContact with bad player: " + player);
-            return null;
+            return createErrorElement(element, "Invalid player in firstContact: " + player);
         }
+
         final Player other = message.getOtherPlayer(game);
         if (other == null || other == player || !other.isIndian()) {
             logger.warning("firstContact with bad other player: " + other);
-            return null;
+            return createErrorElement(element, "Invalid other player in firstContact: " + other);
         }
+
         final Tile tile = message.getTile(game);
         if (tile != null && tile.getOwner() != other) {
             logger.warning("firstContact with bad tile: " + tile);
-            return null;
+            return createErrorElement(element, "Invalid tile in firstContact: " + tile);
         }
+
         final int n = message.getSettlementCount();
 
-        invokeLater(() -> { igc().firstContact(player, other, tile, n); });
-        return null;
+        invokeLater(() -> {
+            igc().firstContact(player, other, tile, n);
+            // Optionally, return a success element here if needed.
+            // return createSuccessElement(element, "First contact processed successfully");
+        });
+
+        // Return a success element indicating the processing has started.
+        return createSuccessElement(element, "First contact processing started");
+    }
+
+    private Element createErrorElement(Element element, String message) {
+        // Create an error response element with an "error" tag and a message attribute.
+        Element errorElement = element.getOwnerDocument().createElement("error");
+        errorElement.setAttribute(MESSAGE_ATTRIBUTE, message);
+        return errorElement;
+    }
+
+    private Element createSuccessElement(Element element, String successMessage) {
+        // Create a success response element with a "success" tag and a message attribute.
+        Element successElement = element.getOwnerDocument().createElement("success");
+        successElement.setAttribute(MESSAGE_ATTRIBUTE, successMessage);
+        return successElement;
     }
 
     /**
@@ -704,16 +686,22 @@ public final class InGameInputHandler extends InputHandler {
      *     tree) that holds all the information.
      * @return Null.
      */
+    private static final String MIGRANTS_ATTRIBUTE ="Migrants";
     private Element fountainOfYouth(Element element) {
-        final int n = getIntegerAttribute(element, "migrants");
+        final int n = getIntegerAttribute(element, MIGRANTS_ATTRIBUTE);
         if (n <= 0) {
-            logger.warning("Invalid migrants attribute: "
-                + element.getAttribute("migrants"));
-            return null;
+            logger.warning("Invalid migrants attribute: " + element.getAttribute(MIGRANTS_ATTRIBUTE));
+            return createErrorElement(element, "Invalid migrants attribute: " + element.getAttribute(MIGRANTS_ATTRIBUTE));
         }
 
-        invokeLater(() -> { igc().fountainOfYouth(n); });
-        return null;
+        invokeLater(() -> {
+            igc().fountainOfYouth(n);
+            // Optionally, return a success element here if needed.
+            // return createSuccessElement(element, "Fountain of Youth processed successfully");
+        });
+
+        // Return a success element indicating the processing has started.
+        return createSuccessElement(element, "Fountain of Youth processing started");
     }
 
     /**
@@ -726,20 +714,25 @@ public final class InGameInputHandler extends InputHandler {
     private Element gameEnded(Element element) {
         FreeColClient freeColClient = getFreeColClient();
         FreeColDebugger.finishDebugRun(freeColClient, true);
-        final Player winner
-            = getGame().getFreeColGameObject(element.getAttribute("winner"),
-                                             Player.class);
+        final Player winner = getGame().getFreeColGameObject(element.getAttribute("winner"), Player.class);
         if (winner == null) {
             logger.warning("Invalid player for gameEnded");
-            return null;
+            return createErrorElement(element, "Invalid player for gameEnded");
         }
         final String highScore = element.getAttribute("highScore");
 
         if (winner == freeColClient.getMyPlayer()) {
-            invokeLater(() -> { igc().victory(highScore); });
+            invokeLater(() -> {
+                igc().victory(highScore);
+                // Optionally, return a success element here if needed.
+                // return createSuccessElement(element, "Game ended successfully");
+            });
         }
-        return null;
+
+        // Return a success element indicating the processing has started.
+        return createSuccessElement(element, "Game ended processing started");
     }
+
 
     /**
      * Handle an "indianDemand"-request.
@@ -789,7 +782,10 @@ public final class InGameInputHandler extends InputHandler {
         final Unit unit = message.getUnit(game);
         final String defenderId = message.getDefenderId();
         final List<Goods> goods = message.getGoods();
-        if (unit == null || goods == null) return null;
+        
+        if (unit == null || defenderId == null || goods == null) {
+            return createErrorElement(element, "Invalid parameters in lootCargo");
+        }
 
         invokeLater(() -> { igc().loot(unit, goods, defenderId); });
         return null;
@@ -849,12 +845,15 @@ public final class InGameInputHandler extends InputHandler {
         NewLandNameMessage message = new NewLandNameMessage(game, element);
         final Unit unit = message.getUnit(getFreeColClient().getMyPlayer());
         final String defaultName = message.getNewLandName();
-        if (unit == null || defaultName == null 
-            || !unit.hasTile()) return null;
+
+        if (unit == null || defaultName == null || !unit.hasTile()) {
+            return createErrorElement(element, "Invalid parameters for newLandName");
+        }
 
         invokeLater(() -> { igc().newLandName(defaultName, unit); });
         return null;
     }
+
 
     /**
      * Ask the player to name a new region.
@@ -870,12 +869,19 @@ public final class InGameInputHandler extends InputHandler {
         final Unit unit = message.getUnit(getFreeColClient().getMyPlayer());
         final Region region = message.getRegion(game);
         final String defaultName = message.getNewRegionName();
-        if (defaultName == null || region == null) return null;
+        if (defaultName == null || region == null) {
+            logger.warning("Invalid defaultName or region in newRegionName");
+            return createErrorElement(element, "Invalid defaultName or region in newRegionName");
+        }
 
         invokeLater(() -> {
-                igc().newRegionName(region, defaultName, tile, unit);
-            });
-        return null;
+            igc().newRegionName(region, defaultName, tile, unit);
+            // Optionally, return a success element here if needed.
+            // return createSuccessElement(element, "New region name processed successfully");
+        });
+
+        // Return a success element indicating the processing has started.
+        return createSuccessElement(element, "New region name processing started");
     }
 
     /**
@@ -887,9 +893,9 @@ public final class InGameInputHandler extends InputHandler {
      */
     private Element newTurn(Element element) {
         final int n = getIntegerAttribute(element, "turn");
+        
         if (n < 0) {
-            logger.warning("Invalid turn for newTurn");
-            return null;
+            return createErrorElement(element, "Invalid turn for newTurn");
         }
 
         invokeLater(() -> { igc().newTurn(n); });
@@ -950,9 +956,11 @@ public final class InGameInputHandler extends InputHandler {
      *     tree) that holds all the information.
      * @return Null.
      */
+    private static final String PLAYER_ATTRIBUTE = "player";
+
     private Element setAI(Element element) {
         final Game game = getGame();
-        Player p = game.getFreeColGameObject(element.getAttribute("player"),
+        Player p = game.getFreeColGameObject(element.getAttribute(PLAYER_ATTRIBUTE),
                                              Player.class);
         p.setAI(Boolean.parseBoolean(element.getAttribute("ai")));
 
@@ -967,17 +975,17 @@ public final class InGameInputHandler extends InputHandler {
      * @return Null.
      */
     private Element setCurrentPlayer(Element element) {
-        final Player player
-            = getGame().getFreeColGameObject(element.getAttribute("player"),
-                                             Player.class);
+        final Game game = getGame();
+        final Player player = game.getFreeColGameObject(element.getAttribute(PLAYER_ATTRIBUTE), Player.class);
+
         if (player == null) {
-            logger.warning("Invalid player for setCurrentPlayer");
-            return null;
+            return createErrorElement(element, "Invalid player for setCurrentPlayer");
         }
 
         igc().setCurrentPlayer(player); // It is safe to call this one directly
         return null;
     }
+
 
     /**
      * Handle a "setDead"-message.
@@ -987,15 +995,20 @@ public final class InGameInputHandler extends InputHandler {
      * @return Null.
      */
     private Element setDead(Element element) {
-        final Player player = getGame()
-            .getFreeColGameObject(element.getAttribute("player"),Player.class);
+        final Player player = getGame().getFreeColGameObject(element.getAttribute(PLAYER_ATTRIBUTE), Player.class);
         if (player == null) {
             logger.warning("Invalid player for setDead");
-            return null;
+            return createErrorElement(element, "Invalid player for setDead");
         }
 
-        invokeLater(() -> { igc().setDead(player); });
-        return null;
+        invokeLater(() -> {
+            igc().setDead(player);
+            // Optionally, return a success element here if needed.
+            // return createSuccessElement(element, "Player set as dead successfully");
+        });
+
+        // Return a success element indicating the processing has started.
+        return createSuccessElement(element, "Player set as dead processing started");
     }
 
     /**
@@ -1006,29 +1019,35 @@ public final class InGameInputHandler extends InputHandler {
      * @return Null.
      */
     private Element setStance(Element element) {
-        final Game game = getGame();
-        final Stance stance = Enum.valueOf(Stance.class,
-                                           element.getAttribute("stance"));
-        if (stance == null) {
-            logger.warning("Invalid stance for setStance");
-            return null;
-        }
-        final Player p1 = game
-            .getFreeColGameObject(element.getAttribute("first"), Player.class);
-        if (p1 == null) {
-            logger.warning("Invalid player1 for setStance");
-            return null;
-        }
-        final Player p2 = game
-            .getFreeColGameObject(element.getAttribute("second"),Player.class);
-        if (p2 == null) {
-            logger.warning("Invalid player2 for setStance");
-            return null;
-        }
+        try {
+            final Game game = getGame();
+            final Stance stance = Enum.valueOf(Stance.class, element.getAttribute("stance"));
+            if (stance == null) {
+                throw new IllegalArgumentException("Invalid stance for setStance");
+            }
 
-        invokeLater(() -> { igc().setStance(stance, p1, p2); });
-        return null;
+            final Player p1 = game.getFreeColGameObject(element.getAttribute("first"), Player.class);
+            if (p1 == null) {
+                throw new IllegalArgumentException("Invalid player1 for setStance");
+            }
+
+            final Player p2 = game.getFreeColGameObject(element.getAttribute("second"), Player.class);
+            if (p2 == null) {
+                throw new IllegalArgumentException("Invalid player2 for setStance");
+            }
+
+            invokeLater(() -> {
+                igc().setStance(stance, p1, p2);
+            });
+
+            return element;
+        } catch (IllegalArgumentException e) {
+            // Handle the exception as needed (e.g., log it)
+            logger.warning("Error in setStance: " + e.getMessage());
+            return element;
+        }
     }
+
 
     /**
      * Handle a "spyResult" message.
@@ -1040,7 +1059,7 @@ public final class InGameInputHandler extends InputHandler {
     private Element spyResult(Element element) {
         // The element contains two children, being the full and
         // normal versions of the settlement-being-spied-upon's tile.
-        // It has to be the tile, as otherwise we do not see the units
+        // It has to be the tile, as otherwise, we do not see the units
         // defending the settlement.  So, we have to unpack, update
         // with the first, display, then update with the second.  This
         // is hacky as the client could retain the settlement
@@ -1048,7 +1067,7 @@ public final class InGameInputHandler extends InputHandler {
         NodeList nodeList = element.getChildNodes();
         if (nodeList.getLength() != 2) {
             logger.warning("spyResult length = " + nodeList.getLength());
-            return null;
+            return createErrorElement(element, "Invalid length in spyResult: " + nodeList.getLength());
         }
 
         final Game game = getGame();
@@ -1056,23 +1075,28 @@ public final class InGameInputHandler extends InputHandler {
         final Tile tile = game.getFreeColGameObject(tileId, Tile.class);
         if (tile == null) {
             logger.warning("spyResult bad tile = " + tileId);
-            return null;
+            return createErrorElement(element, "Invalid tile in spyResult: " + tileId);
         }
 
         // Read the privileged tile information from fullElement, and
         // pass a runnable to the display routine that restores the
         // normal view of the tile, which happens when the colony panel
         // is closed.
-        final Element fullElement = (Element)nodeList.item(0);
-        final Element normalElement = (Element)nodeList.item(1);
+        final Element fullElement = (Element) nodeList.item(0);
+        final Element normalElement = (Element) nodeList.item(1);
         tile.readFromXMLElement(fullElement);
         invokeLater(() -> {
-                igc().spyColony(tile, () -> {
-                        tile.readFromXMLElement(normalElement);
-                    });
+            igc().spyColony(tile, () -> {
+                tile.readFromXMLElement(normalElement);
             });
-        return null;
+            // Optionally, return a success element here if needed.
+            // return createSuccessElement(element, "Spy result processed successfully");
+        });
+
+        // Return a success element indicating the processing has started.
+        return createSuccessElement(element, "Spy result processing started");
     }
+
 
     /**
      * Handle an "update"-message.
