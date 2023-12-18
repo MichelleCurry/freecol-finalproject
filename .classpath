@@ -8,5 +8,6 @@
 	<classpathentry kind="lib" path="jars/jorbis-0.0.17.jar"/>
 	<classpathentry kind="lib" path="jars/miglayout-core-4.2.jar"/>
 	<classpathentry kind="lib" path="jars/miglayout-swing-4.2.jar"/>
+	<classpathentry kind="con" path="org.eclipse.jdt.junit.JUNIT_CONTAINER/4"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>

@@ -10,8 +10,36 @@
 			<arguments>
 			</arguments>
 		</buildCommand>
+		<buildCommand>
+			<name>net.sourceforge.metrics.builder</name>
+			<arguments>
+			</arguments>
+		</buildCommand>
 	</buildSpec>
 	<natures>
 		<nature>org.eclipse.jdt.core.javanature</nature>
+		<nature>net.sourceforge.metrics.nature</nature>
 	</natures>
+	<linkedResources>
+		<link>
+			<name>data/rules/classic/resources/video/freecol-opening.video.ogg</name>
+			<type>1</type>
+			<location>C:/Users/aphil/git/freecol-finalproject/freecol-finalproject/data/rules/classic/resources/video/freecol-opening.video.ogg</location>
+		</link>
+		<link>
+			<name>data/rules/classic/resources/images/units/ship/caravel.png</name>
+			<type>1</type>
+			<location>C:/Users/aphil/git/freecol-finalproject/freecol-finalproject/data/rules/classic/resources/images/units/ship/caravel.png</location>
+		</link>
+		<link>
+			<name>data/rules/classic/resources/images/units/ship/galleon.png</name>
+			<type>1</type>
+			<location>C:/Users/aphil/OneDrive/Desktop/galleon.png</location>
+		</link>
+		<link>
+			<name>data/rules/classic/resources/images/units/ship/merchantman.png</name>
+			<type>1</type>
+			<location>C:/Users/aphil/git/freecol-finalproject/freecol-finalproject/data/rules/classic/resources/images/units/ship/merchantman.png</location>
+		</link>
+	</linkedResources>
 </projectDescription>
